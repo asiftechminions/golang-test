@@ -8,7 +8,7 @@ import (
 
 func main() {
 	handleRequests()
-	http.ListenAndServe(":8086", nil)
+	http.ListenAndServe(":8087", nil)
 }
 
 func handleRequests() {
@@ -26,43 +26,32 @@ func riskAnalysis(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var risks []string
-	var users map[int]User
+	users := make(map[int]*User)
 	for _, eachT := range t.Tr {
 
 		var u User
 		u.ID = eachT.UserId
 		if !u.userExist(&users) {
-			users[u.ID] = u
+			users[u.ID] = &u
 		}
 
 		risk := ""
-		if eachT.Amount > 10000 {
-			risk = "high"
-		} else if eachT.Amount > 5000 {
-			risk = "medium"
-		} else {
-			risk = "low"
-		}
-
-		u.Total = users[u.ID].Total + eachT.Amount
-
-		if users[u.ID].Total > 20000 {
-			risk = "high"
-		} else if users[u.ID].Total > 10000 {
-			risk = "medium"
-		} else {
-			risk = "low"
-		}
-
+		dollars := (eachT.Amount / 100)
+		u.Total = users[u.ID].Total + dollars
 		var cardNumbers = u.cardNumbers(users, eachT.CardId)
-		if cardNumbers > 2 {
+		if dollars > 10000 || users[u.ID].Total > 20000 || cardNumbers > 2 {
 			risk = "high"
-		} else if cardNumbers > 1 {
-			risk = "medium"
-		} else {
-			risk = "low"
+			risks = append(risks, risk)
+			continue
 		}
 
+		if dollars > 5000 || users[u.ID].Total > 10000 || cardNumbers > 1 {
+			risk = "medium"
+			risks = append(risks, risk)
+			continue
+		}
+
+		risk = "low"
 		risks = append(risks, risk)
 	}
 
@@ -95,7 +84,7 @@ type User struct {
 	Cards []int
 }
 
-func (u *User) userExist(users *map[int]User) bool {
+func (u *User) userExist(users *map[int]*User) bool {
 	for _, us := range *users {
 		if us.ID == u.ID {
 			return true
@@ -105,7 +94,7 @@ func (u *User) userExist(users *map[int]User) bool {
 	return false
 }
 
-func (u *User) cardNumbers(users map[int]User, cardID int) int {
+func (u *User) cardNumbers(users map[int]*User, cardID int) int {
 
 	if contains(users[u.ID].Cards, cardID) {
 		return len(users[u.ID].Cards)
